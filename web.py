@@ -1,9 +1,12 @@
 """Flask web interface for local testing."""
 
-from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
-from pathlib import Path
+import json
 import os
-from main import validate_input_directory
+import tempfile
+import zipfile
+from pathlib import Path
+
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
 from pipeline import run_pipeline, OUTPUT_DIR
 
 app = Flask(__name__)
@@ -91,6 +94,45 @@ def download_file(filename):
     """Download generated MP3 file."""
     audio_dir = OUTPUT_DIR / 'audio'
     return send_from_directory(str(audio_dir), filename, as_attachment=True)
+
+
+@app.route('/api/clear', methods=['POST'])
+def clear_audio():
+    """Delete all generated MP3 files."""
+    audio_dir = OUTPUT_DIR / 'audio'
+    if not audio_dir.exists():
+        return jsonify({'success': True, 'message': 'No hay audios para borrar', 'deleted': 0})
+    deleted = 0
+    for f in audio_dir.glob('*.mp3'):
+        f.unlink()
+        deleted += 1
+    return jsonify({'success': True, 'message': f'Se borraron {deleted} archivo(s)', 'deleted': deleted})
+
+
+@app.route('/api/download-zip')
+def download_all_zip():
+    """Download all MP3 files as a single ZIP."""
+    audio_dir = OUTPUT_DIR / 'audio'
+    if not audio_dir.exists():
+        return jsonify({'error': 'No hay archivos de audio'}), 404
+    mp3_files = list(audio_dir.glob('*.mp3'))
+    if not mp3_files:
+        return jsonify({'error': 'No hay archivos de audio'}), 404
+    tmp = tempfile.NamedTemporaryFile(suffix='.zip', delete=False)
+    try:
+        with zipfile.ZipFile(tmp.name, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for f in mp3_files:
+                zf.write(f, f.name)
+        tmp.close()
+        return send_file(
+            tmp.name,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name='audiolibro.zip'
+        )
+    finally:
+        if os.path.exists(tmp.name):
+            os.unlink(tmp.name)
 
 
 @app.route('/api/stats')

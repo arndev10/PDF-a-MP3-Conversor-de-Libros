@@ -175,6 +175,27 @@
             font-weight: 500;
             color: #333;
         }
+        
+        .files-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .files-actions .btn {
+            width: auto;
+            margin-top: 0;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
     </style>
 </head>
 <body>
@@ -204,6 +225,10 @@
         
         <div class="files-list" id="filesList" style="display: none;">
             <h3 style="margin-bottom: 15px; color: #333;">🎵 Archivos Generados</h3>
+            <div class="files-actions">
+                <button type="button" class="btn" id="downloadZipBtn">📦 Descargar todo (ZIP)</button>
+                <button type="button" class="btn btn-secondary" id="clearBtn">🗑️ Limpiar audios</button>
+            </div>
             <div id="filesContent"></div>
         </div>
     </div>
@@ -343,12 +368,35 @@
                             </div>
                         `).join('');
                         filesList.style.display = 'block';
+                    } else {
+                        filesList.style.display = 'none';
                     }
                 }
             } catch (error) {
                 console.error('Error loading files:', error);
             }
         }
+        
+        document.getElementById('downloadZipBtn').addEventListener('click', () => {
+            window.location.href = '/api/download-zip';
+        });
+        
+        document.getElementById('clearBtn').addEventListener('click', async () => {
+            if (!confirm('¿Borrar todos los audios generados? Esta acción no se puede deshacer.')) return;
+            try {
+                const res = await fetch('/api/clear', { method: 'POST' });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                    showStatus(data.message || 'Audios borrados.', 'success');
+                    await loadFiles();
+                    document.getElementById('stats').style.display = 'none';
+                } else {
+                    showStatus(data.error || 'Error al limpiar', 'error');
+                }
+            } catch (error) {
+                showStatus('Error: ' + error.message, 'error');
+            }
+        });
         
         function showStatus(message, type) {
             status.textContent = message;
